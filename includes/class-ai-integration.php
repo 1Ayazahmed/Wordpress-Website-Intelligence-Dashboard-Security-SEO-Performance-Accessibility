@@ -22,42 +22,83 @@ class AZ_AI_Integration {
             return ['error' => 'API key not configured'];
         }
 
-        $url = $this->base_url . '/models';
-
-        $response = wp_remote_get($url, [
-            'headers' => [
-                'Authorization' => 'Bearer ' . $this->api_key,
-                'Content-Type'  => 'application/json',
-            ],
-            'timeout' => 15,
-        ]);
-
-        if (is_wp_error($response)) {
-            return ['error' => 'Failed to fetch models: ' . $response->get_error_message()];
-        }
-
-        $status = wp_remote_retrieve_response_code($response);
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-
-        if ($status !== 200) {
-            $msg = $body['error']['message'] ?? 'HTTP ' . $status;
-            return ['error' => 'API error: ' . $msg];
-        }
-
         $models = [];
-        if (isset($body['data']) && is_array($body['data'])) {
-            foreach ($body['data'] as $m) {
-                if (isset($m['id']) && strpos($m['id'], 'gpt') !== false) {
-                    $models[] = $m['id'];
-                }
+        $endpoints = [
+            $this->base_url . '/models',
+        ];
+
+        $parsed = parse_url($this->base_url);
+        $host = $parsed['host'] ?? '';
+
+        $non_standard = ['api.nvcf.nvidia.com', 'integrate.api.nvidia.com', 'api.together.xyz', 'api.groq.com'];
+        foreach ($non_standard as $ns) {
+            if (strpos($host, str_replace('api.', '', $ns)) !== false || strpos($host, $ns) !== false) {
+                $endpoints = [];
+                break;
             }
-            if (empty($models)) {
-                foreach ($body['data'] as $m) {
-                    if (isset($m['id'])) $models[] = $m['id'];
-                }
-            }
-            sort($models);
         }
+
+        if (strpos($host, 'nvidia') !== false || strpos($host, 'nvcf') !== false) {
+            return [
+                'success' => true,
+                'models'  => ['mistralai/mistral-7b-instruct-v0.3', 'meta/llama-3.1-8b-instruct', 'mistralai/mistral-large', 'google/gemma-2-27b-it', 'nvidia/nemotron-4-340b-instruct'],
+                'note'    => 'Common NVIDIA models listed. Type a custom model name if yours is not here.',
+            ];
+        }
+
+        foreach ($endpoints as $url) {
+            $response = wp_remote_get($url, [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $this->api_key,
+                    'Content-Type'  => 'application/json',
+                ],
+                'timeout' => 15,
+            ]);
+
+            if (is_wp_error($response)) {
+                continue;
+            }
+
+            $status = wp_remote_retrieve_response_code($response);
+            if ($status !== 200) {
+                continue;
+            }
+
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+            if (!$body || !is_array($body)) {
+                continue;
+            }
+
+            if (isset($body['data']) && is_array($body['data'])) {
+                foreach ($body['data'] as $m) {
+                    if (isset($m['id'])) {
+                        $models[] = $m['id'];
+                    }
+                }
+            } elseif (isset($body['models']) && is_array($body['models'])) {
+                foreach ($body['models'] as $m) {
+                    if (is_string($m)) {
+                        $models[] = $m;
+                    } elseif (isset($m['id'])) {
+                        $models[] = $m['id'];
+                    }
+                }
+            }
+
+            if (!empty($models)) {
+                break;
+            }
+        }
+
+        if (empty($models)) {
+            return [
+                'success' => true,
+                'models'  => [],
+                'note'    => 'Could not auto-detect models. Your provider may not support the /models endpoint. Use "Custom Model" option below to enter the model name manually.',
+            ];
+        }
+
+        sort($models);
 
         return ['success' => true, 'models' => array_values(array_unique($models))];
     }
