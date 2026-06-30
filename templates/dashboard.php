@@ -274,6 +274,17 @@
         <div class="az-logs" id="az-logs-content"><pre>Click "Refresh Logs" to load activity log.</pre></div>
     </div>
 
+    <!-- Loader Overlay -->
+    <div class="az-loader-overlay" id="az-loader-overlay">
+        <div class="az-loader-modal">
+            <div class="az-loader-spinner">
+                <div class="az-spinner-ring"></div>
+            </div>
+            <div class="az-loader-text" id="az-loader-text">Processing, please wait...</div>
+            <div class="az-loader-warning">Do not close or refresh this tab while processing.</div>
+        </div>
+    </div>
+
     <!-- Floating GitHub Profile Card -->
     <div class="az-github-float" id="az-github-float">
         <a href="https://github.com/1Ayazahmed" target="_blank" rel="noopener noreferrer" class="az-github-link">

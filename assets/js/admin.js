@@ -27,12 +27,19 @@
             $('#az-progress').show();
             $('.az-progress-fill').css('width', percent + '%');
             $('.az-progress-text').text(text || 'Processing...');
+            if (percent > 0 && percent < 100) {
+                showLoader(text || 'Processing, please wait...');
+            }
+            if (percent >= 100) {
+                hideLoader();
+            }
         }
 
         function hideProgress() {
             $('#az-progress').hide();
             $('.az-progress-fill').css('width', '0%');
             $('.az-progress-text').text('Processing...');
+            hideLoader();
         }
 
         function escapeHtml(str) {
@@ -45,6 +52,26 @@
         function escapeAttr(str) {
             return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
+
+        /* Loader */
+        var azBusy = false;
+
+        function showLoader(text) {
+            azBusy = true;
+            $('#az-loader-text').text(text || 'Processing, please wait...');
+            $('#az-loader-overlay').addClass('active');
+        }
+
+        function hideLoader() {
+            azBusy = false;
+            $('#az-loader-overlay').removeClass('active');
+        }
+
+        $(window).on('beforeunload', function() {
+            if (azBusy) {
+                return 'A process is still running. Are you sure you want to leave?';
+            }
+        });
 
         /* Gauge */
         function updateGauge(score) {

@@ -235,6 +235,72 @@
     font-weight: 600;
 }
 
+/* Loader Overlay */
+.az-loader-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 999999;
+    background: rgba(10, 22, 40, 0.75);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+}
+.az-loader-overlay.active {
+    display: flex;
+}
+.az-loader-modal {
+    background: #fff;
+    border-radius: 18px;
+    padding: 40px 50px;
+    text-align: center;
+    box-shadow: 0 16px 60px rgba(0,0,0,0.3);
+    max-width: 400px;
+    width: 90%;
+    animation: azModalIn 0.3s ease;
+}
+@keyframes azModalIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.az-loader-spinner {
+    margin-bottom: 20px;
+}
+.az-spinner-ring {
+    display: inline-block;
+    width: 56px;
+    height: 56px;
+    border: 5px solid #e9ecef;
+    border-top-color: #0d6efd;
+    border-radius: 50%;
+    animation: azSpin 0.8s linear infinite;
+}
+@keyframes azSpin {
+    to { transform: rotate(360deg); }
+}
+.az-loader-text {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 10px;
+}
+.az-loader-warning {
+    font-size: 13px;
+    color: #dc3545;
+    font-weight: 500;
+    background: #fce4e4;
+    padding: 8px 14px;
+    border-radius: 8px;
+    display: inline-block;
+}
+.az-warning-flash {
+    animation: azFlash 1.2s ease-in-out infinite;
+}
+@keyframes azFlash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 @media (max-width: 1200px) {
     .az-dashboard-grid { grid-template-columns: 1fr 1fr; }
     .az-card-full { grid-column: span 2; }
