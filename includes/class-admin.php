@@ -209,13 +209,33 @@ class AZ_Admin {
         $this->auto_configure_rankmath();
         $this->auto_configure_smush();
 
-        AZ_Logger::log("Auto-optimize: {$fixed} fixes, {$failed} failed", 'SUCCESS');
+        $scanner2 = new AZ_Scanner();
+        $fresh_issues = $scanner2->full_scan();
+        $health_score = $scanner2->get_health_score();
+        $category_scores = $scanner2->get_category_scores();
+
+        $counts = ['critical' => 0, 'high' => 0, 'medium' => 0, 'low' => 0];
+        foreach ($fresh_issues as $issue) {
+            if (isset($counts[$issue['severity']])) {
+                $counts[$issue['severity']]++;
+            }
+        }
+
+        AZ_Logger::log("Auto-optimize: {$fixed} fixes, {$failed} failed — new score: {$health_score}", 'SUCCESS');
 
         wp_send_json_success([
-            'fixed' => $fixed,
-            'failed' => $failed,
+            'fixed'           => $fixed,
+            'failed'          => $failed,
             'install_results' => $install_results,
-            'results' => $fix_results,
+            'results'         => $fix_results,
+            'health_score'    => $health_score,
+            'critical'        => $counts['critical'],
+            'high'            => $counts['high'],
+            'medium'          => $counts['medium'],
+            'low'             => $counts['low'],
+            'total'           => count($fresh_issues),
+            'category_scores' => $category_scores,
+            'issues'          => $fresh_issues,
         ]);
     }
 

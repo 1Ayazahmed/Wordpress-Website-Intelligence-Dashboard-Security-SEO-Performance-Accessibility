@@ -10,16 +10,16 @@ class AZ_Fixer {
     }
 
     public function fix($fix_id) {
-        $method_name = 'fix_' . $fix_id;
+        $method_name = strpos($fix_id, 'fix_') === 0 ? $fix_id : 'fix_' . $fix_id;
 
         if (method_exists($this, $method_name)) {
-            AZ_Logger::log("Running fix: {$fix_id}", 'INFO');
+            AZ_Logger::log("Running fix: {$method_name}", 'INFO');
             return $this->$method_name();
         }
 
         return [
             'success' => false,
-            'message' => 'Unknown fix method: ' . $fix_id,
+            'message' => 'Unknown fix method: ' . $method_name,
             'details' => [],
         ];
     }

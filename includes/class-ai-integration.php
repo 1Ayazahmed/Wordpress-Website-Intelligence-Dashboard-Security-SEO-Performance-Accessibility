@@ -17,36 +17,36 @@ class AZ_AI_Integration {
         return !empty($this->api_key);
     }
 
+    private function normalize_nvidia_url() {
+        $parsed = parse_url($this->base_url);
+        $host = $parsed['host'] ?? '';
+        if (strpos($host, 'nvidia') !== false || strpos($host, 'nvcf') !== false) {
+            if (strpos($host, 'integrate.api.nvidia.com') !== false) {
+                $path = $parsed['path'] ?? '';
+                if ($path !== '/v1' && $path !== '/v1/') {
+                    return 'https://integrate.api.nvidia.com/v1';
+                }
+            }
+        }
+        return $this->base_url;
+    }
+
     public function fetch_models() {
         if (!$this->is_configured()) {
             return ['error' => 'API key not configured'];
         }
 
+        $base = $this->normalize_nvidia_url();
         $models = [];
-        $endpoints = [
-            $this->base_url . '/models',
+        $parsed = parse_url($base);
+        $host = $parsed['host'] ?? '';
+        $is_nvidia = strpos($host, 'nvidia') !== false || strpos($host, 'nvcf') !== false;
+
+        $urls_to_try = [
+            $base . '/models',
         ];
 
-        $parsed = parse_url($this->base_url);
-        $host = $parsed['host'] ?? '';
-
-        $non_standard = ['api.nvcf.nvidia.com', 'integrate.api.nvidia.com', 'api.together.xyz', 'api.groq.com'];
-        foreach ($non_standard as $ns) {
-            if (strpos($host, str_replace('api.', '', $ns)) !== false || strpos($host, $ns) !== false) {
-                $endpoints = [];
-                break;
-            }
-        }
-
-        if (strpos($host, 'nvidia') !== false || strpos($host, 'nvcf') !== false) {
-            return [
-                'success' => true,
-                'models'  => ['mistralai/mistral-7b-instruct-v0.3', 'meta/llama-3.1-8b-instruct', 'mistralai/mistral-large', 'google/gemma-2-27b-it', 'nvidia/nemotron-4-340b-instruct'],
-                'note'    => 'Common NVIDIA models listed. Type a custom model name if yours is not here.',
-            ];
-        }
-
-        foreach ($endpoints as $url) {
+        foreach ($urls_to_try as $url) {
             $response = wp_remote_get($url, [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $this->api_key,
@@ -88,6 +88,19 @@ class AZ_AI_Integration {
             if (!empty($models)) {
                 break;
             }
+        }
+
+        if (empty($models) && $is_nvidia) {
+            return [
+                'success' => true,
+                'models'  => [
+                    'mistralai/mistral-7b-instruct-v0.3', 'meta/llama-3.1-8b-instruct',
+                    'mistralai/mistral-large', 'google/gemma-2-27b-it',
+                    'nvidia/nemotron-4-340b-instruct', 'meta/codellama-70b',
+                    'google/gemma-2-9b-it', 'mistralai/mixtral-8x7b-instruct-v0.1',
+                ],
+                'note'    => 'Auto-detect failed. Common NVIDIA models listed. Use "Custom Model" to enter any model name from build.nvidia.com.',
+            ];
         }
 
         if (empty($models)) {
@@ -141,44 +154,70 @@ class AZ_AI_Integration {
     }
 
     private function call_api($prompt) {
-        $url = $this->base_url . '/chat/completions';
+        $base = $this->normalize_nvidia_url();
+        $parsed = parse_url($base);
+        $host = $parsed['host'] ?? '';
 
-        $body = json_encode([
+        $endpoints = [$base . '/chat/completions'];
+
+        if (strpos($host, 'nvidia') !== false || strpos($host, 'nvcf') !== false) {
+            $endpoints[] = 'https://integrate.api.nvidia.com/v1/chat/completions';
+        }
+
+        $payload = [
             'model'       => $this->model,
             'messages'    => [
                 ['role' => 'user', 'content' => $prompt],
             ],
             'max_tokens'  => 1000,
             'temperature' => 0.7,
-        ]);
+        ];
 
-        $response = wp_remote_post($url, [
-            'headers' => [
-                'Authorization' => 'Bearer ' . $this->api_key,
-                'Content-Type'  => 'application/json',
-            ],
-            'body'    => $body,
-            'timeout' => 30,
-        ]);
+        $last_error = '';
+        foreach ($endpoints as $url) {
+            $response = wp_remote_post($url, [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $this->api_key,
+                    'Content-Type'  => 'application/json',
+                ],
+                'body'    => json_encode($payload),
+                'timeout' => 45,
+            ]);
 
-        if (is_wp_error($response)) {
-            return ['error' => 'API request failed: ' . $response->get_error_message()];
+            if (is_wp_error($response)) {
+                $last_error = 'API request failed: ' . $response->get_error_message();
+                continue;
+            }
+
+            $status_code = wp_remote_retrieve_response_code($response);
+            $response_body = wp_remote_retrieve_body($response);
+            $data = json_decode($response_body, true);
+
+            if ($status_code === 404) {
+                $last_error = 'API endpoint not found at ' . $url . '. Check your Base URL (should end with /v1 for most providers).';
+                continue;
+            }
+
+            if ($status_code !== 200) {
+                $error_msg = isset($data['error']['message']) ? $data['error']['message'] : 'Unknown error';
+                $last_error = "API error ({$status_code}): {$error_msg}";
+
+                if ($status_code === 401) {
+                    $last_error .= '. Check your API key.';
+                } elseif ($status_code === 400 && strpos($error_msg, 'model') !== false) {
+                    $last_error .= '. The model "' . $this->model . '" may not exist. Try "Fetch Models" to see available models.';
+                }
+                continue;
+            }
+
+            if (isset($data['choices'][0]['message']['content'])) {
+                return ['success' => true, 'content' => trim($data['choices'][0]['message']['content'])];
+            }
+
+            return ['error' => 'Unexpected API response format'];
         }
 
-        $status_code = wp_remote_retrieve_response_code($response);
-        $response_body = wp_remote_retrieve_body($response);
-        $data = json_decode($response_body, true);
-
-        if ($status_code !== 200) {
-            $error_msg = isset($data['error']['message']) ? $data['error']['message'] : 'Unknown error';
-            AZ_Logger::log("AI API error: {$error_msg}", 'ERROR');
-            return ['error' => "API error ({$status_code}): {$error_msg}"];
-        }
-
-        if (isset($data['choices'][0]['message']['content'])) {
-            return ['success' => true, 'content' => trim($data['choices'][0]['message']['content'])];
-        }
-
-        return ['error' => 'Unexpected API response format'];
+        AZ_Logger::log("AI API call failed: {$last_error}", 'ERROR');
+        return ['error' => $last_error];
     }
 }

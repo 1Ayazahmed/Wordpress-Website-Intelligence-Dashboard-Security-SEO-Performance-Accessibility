@@ -400,7 +400,29 @@
                     var data = response.data;
                     setProgress(100, data.fixed + ' fixed, ' + data.failed + ' failed');
                     showAlert(data.fixed + ' fixed. ' + data.failed + ' failed.', data.failed > 0 ? 'error' : 'success');
-                    setTimeout(function() { $('#az-scan-btn').click(); }, 1200);
+
+                    if (data.health_score !== undefined) {
+                        updateGauge(data.health_score);
+                        if (data.category_scores) {
+                            $('#az-cat-security').css('width', data.category_scores.security + '%');
+                            $('#az-cat-security-val').text(data.category_scores.security);
+                            $('#az-cat-seo').css('width', data.category_scores.seo + '%');
+                            $('#az-cat-seo-val').text(data.category_scores.seo);
+                            $('#az-cat-performance').css('width', data.category_scores.performance + '%');
+                            $('#az-cat-performance-val').text(data.category_scores.performance);
+                            $('#az-cat-accessibility').css('width', data.category_scores.accessibility + '%');
+                            $('#az-cat-accessibility-val').text(data.category_scores.accessibility);
+                        }
+                        $('#az-count-critical').text(data.critical);
+                        $('#az-count-high').text(data.high);
+                        $('#az-count-medium').text(data.medium);
+                        $('#az-count-low').text(data.low);
+                        $('#az-count-total').text(data.total);
+                        drawPieChart(data.critical, data.high, data.medium, data.low);
+                        populateIssuesTable(data.issues);
+                    } else {
+                        setTimeout(function() { $('#az-scan-btn').click(); }, 1200);
+                    }
                 } else {
                     showAlert('Fix all failed.', 'error');
                     hideProgress();
